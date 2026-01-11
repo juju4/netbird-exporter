@@ -8,6 +8,19 @@ GOTEST=$(GOCMD) test
 GOMOD=$(GOCMD) mod
 BINARY_NAME=netbird-exporter
 DOCKER_TAG=gocloudio/netbird-exporter:latest
+# Packages parameters
+DIST_DIR      ?= dist/
+ARCH          ?= $(shell uname -m)
+VERSION       ?= $(shell git describe --abbrev --long HEAD)
+ABBREV        ?= $(shell git rev-parse --short HEAD)
+COMMIT        ?= $(shell git rev-parse HEAD)
+TAG           ?= $(shell git describe --tags --abbrev=0 HEAD)
+VERSION_PKG   ?= $(shell echo $(VERSION) | sed 's/^v//g')
+LICENSE       := MIT
+URL           := https://github.com/gocloudio/netbird-exporter
+DESCRIPTION   := A Prometheus exporter for NetBird peer metrics.
+DATE          :=  $(shell date +%FT%T%z)
+MAINTAINER    := dkrhodes@users.noreply.github.com
 
 all: test build
 
@@ -16,6 +29,10 @@ build:
 
 test:
 	$(GOTEST) -v ./...
+
+.PHONY: prepare
+prepare:
+	mkdir -p $(DIST_DIR)
 
 clean:
 	$(GOCLEAN)
@@ -37,4 +54,28 @@ build-linux:
 
 build-arm:
 	mkdir -p output	
-	CGO_ENABLED=0 GOOS=linux GOARCH=arm64 $(GOBUILD) -o output/$(BINARY_NAME)-linux-arm64 -v ./cmd/netbird-exporter 
+	CGO_ENABLED=0 GOOS=linux GOARCH=arm64 $(GOBUILD) -o output/$(BINARY_NAME)-linux-arm64 -v ./cmd/netbird-exporter
+
+.PHONY: package-deb
+package-deb: prepare
+	fpm -s dir -t deb -n $(BINARY_NAME) -v $(VERSION_PKG) \
+        --maintainer "$(MAINTAINER)" \
+        --description "$(DESCRIPTION)"  \
+        --url "$(URL)" \
+        --architecture $(ARCH) \
+        --license "$(LICENSE)" \
+        --package $(DIST_DIR) \
+        $(OUTPUT)=/usr/local/bin/netbird-exporter \
+        package/netbird-exporter.service=/lib/systemd/system/netbird-exporter.service
+
+.PHONY: package-rpm
+package-rpm: prepare
+	fpm -s dir -t rpm -n $(BINARY_NAME) -v $(VERSION_PKG) \
+        --maintainer "$(MAINTAINER)" \
+        --description "$(DESCRIPTION)" \
+        --url "$(URL)" \
+        --architecture $(ARCH) \
+        --license "$(LICENSE) "\
+        --package $(DIST_DIR) \
+        $(OUTPUT)=/usr/local/bin/netbird-exporter \
+        package/netbird-exporter.service=/lib/systemd/system/netbird-exporter.service
